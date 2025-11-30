@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Program Hub｜サイトビルダー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg:#f9fafc; --fg:#2a2a2a; --brand:#2a4d69; --muted:#666; --card:#fff;
+    }
+    body { margin:0; font-family:"Noto Sans JP", system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:1rem; border-bottom:1px solid #e6e9ef; display:flex; gap:1rem; align-items:center; }
+    header h1 { font-size:1.2rem; margin:0; color:var(--brand); }
+    .wrap { display:grid; grid-template-columns: 360px 1fr; min-height:calc(100vh - 58px); }
+    .panel { padding:1rem; overflow:auto; }
+    .card { background:var(--card); border:1px solid #e6e9ef; border-radius:8px; padding:1rem; margin-bottom:1rem; }
+    .row { display:flex; gap:.75rem; }
+    label { font-size:.9rem; color:var(--muted); display:block; margin-bottom:.25rem; }
+    input, textarea, select { width:100%; padding:.6rem .7rem; border:1px solid #ccd2db; border-radius:6px; font-size:1rem; }
+    textarea { min-height:90px; resize:vertical; }
+    button { background:var(--brand); color:#fff; border:none; border-radius:6px; padding:.6rem 1rem; cursor:pointer; }
+    button.secondary { background:#eef3f8; color:#1f3a50; }
+    button.danger { background:#d94e4e; }
+    .list { display:flex; flex-direction:column; gap:.5rem; }
+    .section-item { display:flex; gap:.5rem; align-items:center; }
+    .section-item input { flex:1; }
+    .actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+    iframe { width:100%; height:80vh; border:0; background:#fff; }
+    .note { font-size:.85rem; color:var(--muted); }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Program Hub｜サイトビルダー</h1>
+    <div class="actions">
+      <button id="exportBtn">HTMLをダウンロード</button>
+      <button class="secondary" id="resetBtn">リセット</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- 左：編集パネル -->
+    <div class="panel">
+      <div class="card">
+        <label>サイトタイトル</label>
+        <input id="siteTitle" placeholder="例：Program Hub">
+        <label class="mt">サイトの説明（meta description）</label>
+        <textarea id="siteDesc" placeholder="例：使って覚える、静かな学びと創作の場所。"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="grid-2">
+          <div>
+            <label>テーマ</label>
+            <select id="theme">
+              <option value="quiet">静寂（ネイビー×余白）</option>
+              <option value="mono">モノスペース（開発者向け）</option>
+              <option value="minimal">ミニマル（黒×白）</option>
+            </select>
+          </div>
+          <div>
+            <label>アクセントカラー</label>
+            <input id="accent" type="color" value="#2a4d69">
+          </div>
+        </div>
+        <p class="note">テーマとアクセントはプレビューに即反映されます。</p>
+      </div>
+
+      <div class="card">
+        <label>ナビリンク（最大5件）</label>
+        <div class="list" id="navList"></div>
+        <div class="row">
+          <input id="navText" placeholder="表示名">
+          <input id="navHref" placeholder="リンク（/about など）">
+          <button id="addNav">追加</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <label>セクション</label>
+        <div class="list" id="sectionList"></div>
+        <div class="row">
+          <input id="secTitle" placeholder="セクションタイトル">
+          <textarea id="secBody" placeholder="本文（HTML可）"></textarea>
+        </div>
+        <div class="actions">
+          <button id="addSection">セクションを追加</button>
+          <button class="secondary" id="clearSections">全削除</button>
+        </div>
+        <p class="note">ドラッグで並べ替え可能。各行の✕で削除できます。</p>
+      </div>
+
+      <div class="card">
+        <label>フッター文言</label>
+        <input id="footerText" placeholder="© 2025 Program Hub">
+      </div>
+    </div>
+
+    <!-- 右：ライブプレビュー -->
+    <div class="panel">
+      <iframe id="preview"></iframe>
+    </div>
+  </div>
+
+  <script>
+    // 状態
+    const state = {
+      title: "Program Hub",
+      desc: "使って覚える、静かな学びと創作の場所。",
+      theme: "quiet",
+      accent: "#2a4d69",
+      nav: [],
+      sections: [],
+      footer: "© 2025 Program Hub"
+    };
+
+    // 要素参照
+    const el = {
+      siteTitle: document.getElementById('siteTitle'),
+      siteDesc: document.getElementById('siteDesc'),
+      theme: document.getElementById('theme'),
+      accent: document.getElementById('accent'),
+      navList: document.getElementById('navList'),
+      navText: document.getElementById('navText'),
+      navHref: document.getElementById('navHref'),
+      addNav: document.getElementById('addNav'),
+      sectionList: document.getElementById('sectionList'),
+      secTitle: document.getElementById('secTitle'),
+      secBody: document.getElementById('secBody'),
+      addSection: document.getElementById('addSection'),
+      clearSections: document.getElementById('clearSections'),
+      footerText: document.getElementById('footerText'),
+      exportBtn: document.getElementById('exportBtn'),
+      resetBtn: document.getElementById('resetBtn'),
+      preview: document.getElementById('preview')
+    };
+
+    // 初期反映
+    el.siteTitle.value = state.title;
+    el.siteDesc.value = state.desc;
+    el.theme.value = state.theme;
+    el.accent.value = state.accent;
+    el.footerText.value = state.footer;
+
+    // ナビUI描画
+    function renderNavList() {
+      el.navList.innerHTML = '';
+      state.nav.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'section-item';
+        row.draggable = true;
+        row.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', i));
+        row.addEventListener('dragover', e => e.preventDefault());
+        row.addEventListener('drop', e => {
+          const from = +e.dataTransfer.getData('text/plain'); const to = i;
+          const [m] = state.nav.splice(from,1); state.nav.splice(to,0,m);
+          renderNavList(); update();
+        });
+        const t = document.createElement('input'); t.value = item.text; t.oninput = () => { item.text = t.value; update(); };
+        const h = document.createElement('input'); h.value = item.href; h.oninput = () => { item.href = h.value; update(); };
+        const del = document.createElement('button'); del.textContent = '✕'; del.className='danger'; del.onclick = () => { state.nav.splice(i,1); renderNavList(); update(); };
+        row.append(t,h,del); el.navList.append(row);
+      });
+    }
+
+    // セクションUI描画
+    function renderSectionList() {
+      el.sectionList.innerHTML = '';
+      state.sections.forEach((sec, i) => {
+        const row = document.createElement('div');
+        row.className = 'section-item';
+        row.draggable = true;
+        row.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', i));
+        row.addEventListener('dragover', e => e.preventDefault());
+        row.addEventListener('drop', e => {
+          const from = +e.dataTransfer.getData('text/plain'); const to = i;
+          const [m] = state.sections.splice(from,1); state.sections.splice(to,0,m);
+          renderSectionList(); update();
+        });
+        const t = document.createElement('input'); t.value = sec.title; t.oninput = () => { sec.title = t.value; update(); };
+        const b = document.createElement('input'); b.value = sec.body; b.oninput = () => { sec.body = b.value; update(); };
+        const del = document.createElement('button'); del.textContent = '✕'; del.className='danger'; del.onclick = () => { state.sections.splice(i,1); renderSectionList(); update(); };
+        row.append(t,b,del); el.sectionList.append(row);
+      });
+    }
+
+    // テーマ適用
+    function applyTheme(cssVars) {
+      const root = document.querySelector(':root');
+      for (const k in cssVars) root.style.setProperty(k, cssVars[k]);
+    }
+    function themeVars(name, accent) {
+      switch(name) {
+        case 'mono': return { '--bg':'#0f1216', '--fg':'#e6edf3', '--brand':accent, '--muted':'#8b949e', '--card':'#0b0e12' };
+        case 'minimal': return { '--bg':'#ffffff', '--fg':'#111', '--brand':accent, '--muted':'#666', '--card':'#fff' };
+        default: return { '--bg':'#f9fafc', '--fg':'#2a2a2a', '--brand':accent, '--muted':'#666', '--card':'#fff' };
+      }
+    }
+
+    // プレビューHTML生成
+    function buildHTML() {
+      const navHTML = state.nav.length ? `<nav><ul>${state.nav.map(n => `<li><a href="${escapeHTML(n.href)}">${escapeHTML(n.text)}</a></li>`).join('')}</ul></nav>` : '';
+      const sectionsHTML = state.sections.map(s => `
+        <section>
+          <h2>${escapeHTML(s.title)}</h2>
+          <div>${s.body}</div>
+        </section>`).join('\n');
+
+      const baseCSS = `
+        :root{--brand:${state.accent};}
+        body{margin:0;font-family:"Noto Sans JP",system-ui,sans-serif;background:#fff;color:#222;}
+        header{padding:2.5rem 1rem;text-align:center;border-bottom:1px solid #eee;}
+        header h1{margin:0;font-size:2.2rem;color:var(--brand);}
+        header p{color:#666;margin-top:.4rem}
+        nav{display:flex;justify-content:center;gap:.8rem;padding:.8rem;border-bottom:1px solid #eee;flex-wrap:wrap}
+        nav a{color:#222;text-decoration:none;padding:.4rem .7rem;border-radius:6px}
+        nav a:hover{background:#f4f7fb}
+        main{max-width:960px;margin:2rem auto;padding:0 1rem;display:grid;gap:1.5rem}
+        section{background:#fff;border:1px solid #eee;border-radius:10px;padding:1rem 1.2rem}
+        section h2{margin:.2rem 0 1rem;color:#1f3a50}
+        footer{text-align:center;color:#666;padding:2rem;border-top:1px solid #eee;margin-top:2rem}
+      `;
+
+      return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHTML(state.title)}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="${escapeHTML(state.desc)}">
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <script type="application/ld+json">
+  { "@context":"https://schema.org", "@type":"WebSite", "name":"${escapeHTML(state.title)}", "url":"https://example.com" }
+  </script>
+  <style>${baseCSS}</style>
+</head>
+<body>
+  <header>
+    <h1>${escapeHTML(state.title)}</h1>
+    <p>${escapeHTML(state.desc)}</p>
+  </header>
+  ${navHTML}
+  <main>
+    ${sectionsHTML}
+  </main>
+  <footer>${escapeHTML(state.footer)}</footer>
+</body>
+</html>`;
+    }
+
+    // エクスポート
+    function download(filename, text) {
+      const a = document.createElement('a');
+      a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(text);
+      a.download = filename; a.click();
+    }
+
+    // エスケープ
+    function escapeHTML(s='') {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // 更新＆反映
+    function update() {
+      el.preview.srcdoc = buildHTML();
+    }
+
+    // イベント
+    el.siteTitle.oninput = () => { state.title = el.siteTitle.value; update(); };
+    el.siteDesc.oninput = () => { state.desc = el.siteDesc.value; update(); };
+    el.theme.onchange = () => { state.theme = el.theme.value; applyTheme(themeVars(state.theme, state.accent)); };
+    el.accent.oninput = () => { state.accent = el.accent.value; applyTheme(themeVars(state.theme, state.accent)); update(); };
+    el.addNav.onclick = () => {
+      if (!el.navText.value.trim()) return;
+      state.nav.push({ text: el.navText.value.trim(), href: el.navHref.value.trim() || '#' });
+      el.navText.value=''; el.navHref.value=''; renderNavList(); update();
+    };
+    el.addSection.onclick = () => {
+      if (!el.secTitle.value.trim() && !el.secBody.value.trim()) return;
+      state.sections.push({ title: el.secTitle.value.trim() || 'セクション', body: el.secBody.value.trim() || '<p>本文を追加してください。</p>' });
+      el.secTitle.value=''; el.secBody.value=''; renderSectionList(); update();
+    };
+    el.clearSections.onclick = () => { state.sections = []; renderSectionList(); update(); };
+    el.footerText.oninput = () => { state.footer = el.footerText.value; update(); };
+    el.exportBtn.onclick = () => download(`${state.title || 'site'}.html`, buildHTML());
+    el.resetBtn.onclick = () => {
+      if (!confirm('すべての入力をリセットしますか？')) return;
+      state.title = 'Program Hub';
+      state.desc = '使って覚える、静かな学びと創作の場所。';
+      state.theme = 'quiet'; state.accent = '#2a4d69';
+      state.nav = []; state.sections = [];
+      state.footer = '© 2025 Program Hub';
+      el.siteTitle.value = state.title;
+      el.siteDesc.value = state.desc;
+      el.theme.value = state.theme;
+      el.accent.value = state.accent;
+      el.footerText.value = state.footer;
+      renderNavList(); renderSectionList();
+      applyTheme(themeVars(state.theme, state.accent));
+      update();
+    };
+
+    // 初期UI
+    renderNavList(); renderSectionList();
+    applyTheme(themeVars(state.theme, state.accent));
+    update();
+  </script>
+</body>
+</html>
